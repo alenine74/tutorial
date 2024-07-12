@@ -50,19 +50,22 @@ delete_docker_resources() {
 }
 
 delete_registry_images() {
-  log "Upping docker registry"
-  sudo docker compose -f /v3-registry/docker-compose.yml up -d
+	log "Starting docker registry"
+	if ! sudo docker compose -f /v3-registry/docker-compose.yml up -d; then
+		log "Failed to start docker registry"
+		return 1
+	fi
 	log "Deleting all registry images"
 	sudo rm -rf "$REGISTRY_PATH" || log "Failed to delete registry images"
 }
 
 check_services_start() {
 	for service in "${_services[@]}"; do
-		log "$service is now $(systemctl is-active "$service")"
+		log "$service is $(systemctl is-active "$service")"
 		if [[ $(systemctl is-active "$service") != "active" ]]; then
 			log "$service is not active, restarting"
 			sudo systemctl restart "$service"
-			sleep 2
+			sleep 5
 			log "$service is now $(systemctl is-active "$service")"
 		fi
 	done
@@ -79,10 +82,16 @@ update_reboot() {
 	fi
 }
 
+_extra_func() {
+	sudo rebuild-images -u postgres 15
+	sudo rebuild-images -rb all
+}
+
 clean() {
 	stop_all_services
 	delete_docker_resources
 	delete_registry_images
+	_extra_func #This function will be delete later
 	log "All CI services should start again"
 	sleep 10
 	check_services_start
