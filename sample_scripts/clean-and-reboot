@@ -1,0 +1,96 @@
+#!/bin/bash
+
+#services=($(systemctl list-units --type=service --no-legend | grep '\.service' | awk '{print $1}' | grep '^v3' | grep 'service$'))
+services=("v3-ci-instance@1.service")
+_stop_all_services() {
+	for service in "${services[@]}"; do
+		timeout 20 sudo systemctl stop "${service}"
+
+		if [ "$(systemctl is-active "${service}")" != "inactive" ] && [ "$(systemctl is-active "${service}")" != "failed" ]; then
+			echo "failed to stop ${service}"
+			pid=$(systemctl show -p MainPID --value "${service}")
+			if [ -n "${pid}" ]; then
+				echo "killing ${service}"
+				sudo kill -9 "${pid}"
+				if [ $? -ne 0 ]; then
+					echo "Failed to kill ${service} with PID ${pid}"
+				fi
+			fi
+		fi
+	done
+}
+
+_delete_all_docker_images() {
+	echo "Deleting all Docker images from cache and registry"
+	docker stop "$(docker ps -q)"
+	if [ $? -ne 0 ]; then
+		echo "Failed to stop running Docker containers"
+	fi
+
+	docker rm "$(docker ps -aq)"
+	if [ $? -ne 0 ]; then
+		echo "Failed to remove Docker containers"
+	fi
+
+	docker system prune -a -f
+	if [ $? -ne 0 ]; then
+		echo "Failed to prune Docker system"
+	fi
+
+	docker volume prune -f
+	if [ $? -ne 0 ]; then
+		echo "Failed to prune Docker volumes"
+	fi
+
+	docker network prune -f
+	if [ $? -ne 0 ]; then
+		echo "Failed to prune Docker networks"
+	fi
+}
+
+_delete_all_registry_images() {
+	echo "Deleting all registry images"
+	sudo rm -rf /mnt/HC_Volume_33953567/registry/docker/registry/v2/
+	if [ $? -ne 0 ]; then
+		echo "Failed to delete registry images"
+	fi
+}
+
+_check_services_start() {
+	for service in "${services[@]}"; do
+		if [ "$(systemctl is-active "${service}")" != "active" ]; then
+			echo "${service} is not active yet"
+			systemctl restart "${service}"
+			sleep 2
+			_status=$(systemctl is-active "${service}")
+			echo "${service} is ${_status}"
+		fi
+	done
+}
+
+_update_reboot() {
+	sudo apt update && sudo apt dist-upgrade --auto-remove -y
+	if [ $? -ne 0 ]; then
+		echo "Failed to update and upgrade the system"
+		exit 1
+	fi
+	sudo reboot
+}
+
+case "$1" in
+-clean)
+	_stop_all_services
+	#	_delete_all_docker_images
+	#	_delete_all_registry_images
+	echo "All CI services should start again"
+	sleep 10
+	_check_services_start
+	;;
+-update)
+	echo "Updating and rebooting system"
+	_update_reboot
+	;;
+*)
+	echo "Invalid option. Use -clean or -update"
+	;;
+esac
