@@ -10,17 +10,13 @@ log() {
 }
 
 mapfile -t _services < <(systemctl list-units --type=service --no-legend | grep '\.service' | awk '{print $1}' | grep '^v3' | grep 'service$')
+_services+=("$(systemctl list-units --type=timer --no-legend | grep '\.timer' | awk '{print $1}' | grep '^v3')")
 
 stop_service() {
 	local service=$1
 	log "Stopping $service"
 	if ! timeout 20 sudo systemctl stop "$service"; then
-		log "Failed to stop $service, attempting to kill"
-		local pid
-		pid=$(systemctl show -p MainPID --value "$service")
-		if [[ -n $pid ]]; then
-			sudo kill -9 "$pid" || log "Failed to kill $service with PID $pid"
-		fi
+		systemctl kill --signal=SIGKILL "$service"
 	fi
 }
 
@@ -31,22 +27,16 @@ stop_all_services() {
 }
 
 delete_docker_resources() {
-	log "Stopping all running Docker containers"
-	docker stop $(docker ps -q) || log "No running containers to stop"
-
-	log "Removing all Docker containers"
-	docker rm $(docker ps -aq) || log "No containers to remove"
-
-	local cmds=(
-		"docker system prune -a -f"
-		"docker volume prune -f"
-		"docker network prune -f"
-	)
-
-	for cmd in "${cmds[@]}"; do
-		log "Executing: $cmd"
-		eval "$cmd" || log "Failed: $cmd"
-	done
+	log "Stopping docker service ..."
+	systemctl stop docker.service
+	if [[ $(systemctl is-active docker.service) == "failed" ]]; then
+		rm -rf /var/lib/docker
+	else
+		systemctl kill --signal=SIGKILL docker.service
+		rm -rf /var/lib/docker
+	fi
+	log "docker status is $(systemctl is-active docker.service)"
+	systemctl restart docker.service
 }
 
 delete_registry_images() {
@@ -89,7 +79,7 @@ _extra_func() {
 
 clean() {
 	stop_all_services
-	delete_docker_resources
+	delete_docker_resourcesgg
 	delete_registry_images
 	_extra_func #This function will be delete later
 	log "All CI services should start again"
