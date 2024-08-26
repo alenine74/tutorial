@@ -1,0 +1,7 @@
+[Unit]
+Description=Certbot
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/certbot -q renew --no-random-sleep-on-renew
+PrivateTmp=true
+
