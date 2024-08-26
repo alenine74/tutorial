@@ -1,0 +1,46 @@
+Host *
+    ServerAliveInterval 10
+    ServerAliveCountMax 5
+    Compression yes
+    ControlPath ~/.ssh/sockets/%r@%h:%p
+    LogLevel VERBOSE
+
+Host ssh.webdvl.ir
+  ProxyCommand /usr/local/bin/cloudflared access ssh --hostname %h
+
+Host F01-P
+    HostName 128.140.43.25
+    User aleni
+    Port 3189
+    IdentityFile ~/.ssh/id_rsa
+
+Host F02-GITLAB
+    HostName 116.203.128.245
+    User aleni
+    Port 3189
+    IdentityFile ~/.ssh/id_rsa
+
+Host Ir01-P
+    HostName 87.248.152.112
+    User aleni
+    Port 3189
+    IdentityFile ~/.ssh/id_rsa
+
+Host v3-ci
+    HostName 167.235.241.102
+    User peyman
+    Port 3189
+    IdentityFile ~/.ssh/id_rsa
+
+Host pypiserver
+    HostName 23.88.111.169
+    User peyman
+    Port 3189
+    IdentityFile ~/.ssh/id_rsa_encrypted
+
+Host elk-test
+    HostName 65.108.159.141
+    User dexter
+    Port 3189
+    IdentityFile ~/.ssh/id_rsa
+
